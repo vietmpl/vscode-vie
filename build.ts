@@ -8,6 +8,7 @@ await build({
 	format: "esm",
 	minify: true,
 	target: "node",
+	sourcemap: "external",
 	external: ["vscode"],
 });
 
