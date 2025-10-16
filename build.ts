@@ -13,6 +13,7 @@ await build({
 
 const filesToCopy = [
 	"tree-sitter-vie/tree-sitter-vie.wasm",
+	"tree-sitter-vie/queries/highlights.scm",
 	"web-tree-sitter/tree-sitter.wasm",
 ];
 
