@@ -5,8 +5,10 @@ import { build } from "bun";
 await build({
 	entrypoints: ["src/extension.ts"],
 	outdir: "dist",
+	format: "esm",
 	minify: true,
-	target: "bun",
+	target: "node",
+	external: ["vscode"],
 });
 
 const filesToCopy = [

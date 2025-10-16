@@ -1,18 +1,39 @@
 {
-	"name": "vscode-vie",
+	"name": "vie",
 	"displayName": "Vie",
+	"publisher": "vietmpl",
 	"description": "",
 	"version": "0.0.1",
 	"engines": {
 		"vscode": "^1.105.0"
 	},
+	"categories": [
+		"Programming Languages",
+		"Other"
+	],
 	"repository": {
 		"url": "https://github.com/vietmpl/vscode-vie"
 	},
+	"type": "module",
 	"main": "./dist/extension.js",
 	"activationEvents": [
 		"*"
 	],
+	"contributes": {
+		"languages": [
+			{
+				"id": "vie",
+				"aliases": [
+					"Vie",
+					"vie"
+				],
+				"extensions": [
+					".vie"
+				],
+				"configuration": "./language-configuration.json"
+			}
+		]
+	},
 	"scripts": {
 		"build": "bun run build.ts",
 		"format": "biome check --write",
