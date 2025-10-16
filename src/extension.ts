@@ -1,19 +1,111 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Language, Parser } from "web-tree-sitter";
+import * as vsc from "vscode";
+import { Language, Parser, Query } from "web-tree-sitter";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-export async function activate() {
+export async function initVieLanguage(): Promise<{
+	parser: Parser;
+	language: Language;
+}> {
 	await Parser.init();
 	const parser = new Parser();
+	const language = await Language.load(join(__dirname, "tree-sitter-vie.wasm"));
+	parser.setLanguage(language);
 
-	const Vie = await Language.load(join(__dirname, "tree-sitter-vie.wasm"));
-	parser.setLanguage(Vie);
-	const sourceCode = "{{ Test }}";
-	const tree = parser.parse(sourceCode);
-	if (!tree) {
-		process.exit(1);
+	return { parser, language };
+}
+
+async function initLegend(): Promise<vsc.SemanticTokensLegend> {
+	const tokenTypes = [
+		"keyword",
+		"string",
+		"string.escape",
+		"variable",
+		"boolean",
+		"operator",
+		"punctuation",
+		"comment",
+		"function.call",
+		"punctuation.bracket",
+		"punctuation.delimiter",
+	];
+	const legend = new vsc.SemanticTokensLegend(tokenTypes);
+
+	return legend;
+}
+
+export async function getHighlightsScm(): Promise<string> {
+	const uri = vsc.Uri.file(join(__dirname, "highlights.scm"));
+	const buf = await vsc.workspace.fs.readFile(uri);
+
+	return buf.toString();
+}
+
+class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
+	public constructor(
+		private readonly parser: Parser,
+		private readonly language: Language,
+		private readonly legend: vsc.SemanticTokensLegend,
+		private readonly higlights: string,
+	) {}
+
+	async provideDocumentSemanticTokens(
+		document: vsc.TextDocument,
+		_: vsc.CancellationToken,
+	): Promise<vsc.SemanticTokens> {
+		const builder = new vsc.SemanticTokensBuilder(this.legend);
+		const tree = this.parser.parse(document.getText());
+
+		if (!tree) {
+			throw new Error("Tree parse error");
+		}
+
+		const query = new Query(this.language, this.higlights);
+		const captures = query.captures(tree.rootNode);
+
+		for (const { name, node } of captures) {
+			const tokenTypeIndex = this.legend.tokenTypes.indexOf(name);
+
+			if (tokenTypeIndex === -1) {
+				continue;
+			}
+
+			builder.push(
+				node.startPosition.row,
+				node.startPosition.column,
+				node.endPosition.column - node.startPosition.column,
+				tokenTypeIndex,
+				0,
+			);
+		}
+
+		return builder.build();
 	}
-	console.log(tree.rootNode.toString());
+}
+
+function registerTokenProvider(
+	context: vsc.ExtensionContext,
+	parser: Parser,
+	language: Language,
+	legend: vsc.SemanticTokensLegend,
+	highlights: string,
+) {
+	context.subscriptions.push(
+		vsc.languages.registerDocumentSemanticTokensProvider(
+			{ language: "vie" },
+			new VieSemanticTokensProvider(parser, language, legend, highlights),
+			legend,
+		),
+	);
+}
+
+export async function activate(context: vsc.ExtensionContext) {
+	const { parser, language } = await initVieLanguage();
+	const legend = await initLegend();
+	const highlights = await getHighlightsScm();
+
+	registerTokenProvider(context, parser, language, legend, highlights);
 }
