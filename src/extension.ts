@@ -30,6 +30,7 @@ class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
 			// This will allow early exit and O(length-of-string) lookup.
 			const tokenTypeIndex = this.legend.tokenTypes.indexOf(name);
 			if (tokenTypeIndex === -1) {
+				tree.delete();
 				throw new Error(`Token type "${name}" not found in legend.tokenTypes.`);
 			}
 
@@ -41,8 +42,13 @@ class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
 				0,
 			);
 		}
-
+		tree.delete();
 		return builder.build();
+	}
+
+	public dispose() {
+		this.parser.delete();
+		this.highlightsQuery.delete();
 	}
 }
 
@@ -78,11 +84,17 @@ export async function activate(extensionContext: vsc.ExtensionContext) {
 	// TODO(skewb1k): currently only tokenTypes are used. Consider adding tokenModifiers.
 	const legend = new vsc.SemanticTokensLegend(tokenTypes);
 
+	const provider = new VieSemanticTokensProvider(
+		parser,
+		highlightsQuery,
+		legend,
+	);
 	extensionContext.subscriptions.push(
 		vsc.languages.registerDocumentSemanticTokensProvider(
 			{ language: "vie" },
-			new VieSemanticTokensProvider(parser, highlightsQuery, legend),
+			provider,
 			legend,
 		),
+		provider, // Pass provider to dispose it on deactivation.
 	);
 }
