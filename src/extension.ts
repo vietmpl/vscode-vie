@@ -1,11 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import * as vsc from "vscode";
 import { Language, Parser, Query } from "web-tree-sitter";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
 	public constructor(
@@ -52,17 +48,17 @@ class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
 	}
 }
 
-export async function activate(extensionContext: vsc.ExtensionContext) {
+export async function activate(ctx: vsc.ExtensionContext) {
 	await Parser.init();
 
 	const vieLanguage = await Language.load(
-		join(__dirname, "tree-sitter-vie.wasm"),
+		join(ctx.extensionPath, "dist", "tree-sitter-vie.wasm"),
 	);
 	const parser = new Parser();
 	parser.setLanguage(vieLanguage);
 
 	const highlightsScm = await readFile(
-		join(__dirname, "highlights.scm"),
+		join(ctx.extensionPath, "dist", "highlights.scm"),
 		"utf8",
 	);
 	const highlightsQuery = new Query(vieLanguage, highlightsScm);
@@ -89,7 +85,7 @@ export async function activate(extensionContext: vsc.ExtensionContext) {
 		highlightsQuery,
 		legend,
 	);
-	extensionContext.subscriptions.push(
+	ctx.subscriptions.push(
 		vsc.languages.registerDocumentSemanticTokensProvider(
 			{ language: "vie" },
 			provider,
