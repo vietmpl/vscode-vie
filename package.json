@@ -2,11 +2,14 @@
 	"name": "vie",
 	"displayName": "Vie",
 	"publisher": "vietmpl",
-	"description": "",
-	"version": "0.0.1",
+	"description": "Modern toolchain for code generation",
+	"readme": "README.md",
+	"version": "0.1.0",
 	"engines": {
 		"vscode": "^1.105.0"
 	},
+	"icon": "/assets/icon.png",
+	"license": "MIT",
 	"categories": [
 		"Programming Languages",
 		"Other"
