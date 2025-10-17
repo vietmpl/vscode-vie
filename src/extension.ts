@@ -45,16 +45,57 @@ export async function getHighlightsScm(): Promise<string> {
 }
 
 class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
-	public constructor(
+	constructor(
 		private readonly parser: Parser,
 		private readonly language: Language,
 		private readonly legend: vsc.SemanticTokensLegend,
-		private readonly higlights: string,
+		private readonly highlights: string,
 	) {}
+
+	private lastTokens?: vsc.SemanticTokens;
+	private lastVersion?: number;
 
 	async provideDocumentSemanticTokens(
 		document: vsc.TextDocument,
-		_: vsc.CancellationToken,
+	): Promise<vsc.SemanticTokens> {
+		const tokens = await this.computeTokens(document);
+		this.lastTokens = tokens;
+		this.lastVersion = document.version;
+
+		return new vsc.SemanticTokens(tokens.data, `ver-${document.version}`);
+	}
+
+	async provideDocumentSemanticTokensEdits(
+		document: vsc.TextDocument,
+	): Promise<vsc.SemanticTokensEdits | vsc.SemanticTokens> {
+		const prevVersion = this.lastVersion;
+		const prevTokens = this.lastTokens;
+
+		if (!prevTokens || !prevVersion || document.version !== prevVersion + 1) {
+			const tokens = await this.computeTokens(document);
+			this.lastTokens = tokens;
+			this.lastVersion = document.version;
+
+			return new vsc.SemanticTokens(tokens.data, `ver-${document.version}`);
+		}
+
+		const newTokens = await this.computeTokens(document);
+
+		if (prevTokens.data.length !== newTokens.data.length) {
+			this.lastTokens = newTokens;
+			this.lastVersion = document.version;
+
+			return new vsc.SemanticTokens(newTokens.data, `ver-${document.version}`);
+		}
+
+		return {
+			edits: [],
+			resultId: `ver-${document.version}`,
+		};
+	}
+
+	private async computeTokens(
+		document: vsc.TextDocument,
 	): Promise<vsc.SemanticTokens> {
 		const builder = new vsc.SemanticTokensBuilder(this.legend);
 		const tree = this.parser.parse(document.getText());
@@ -63,15 +104,12 @@ class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
 			throw new Error("Tree parse error");
 		}
 
-		const query = new Query(this.language, this.higlights);
+		const query = new Query(this.language, this.highlights);
 		const captures = query.captures(tree.rootNode);
 
 		for (const { name, node } of captures) {
 			const tokenTypeIndex = this.legend.tokenTypes.indexOf(name);
-
-			if (tokenTypeIndex === -1) {
-				continue;
-			}
+			if (tokenTypeIndex === -1) continue;
 
 			builder.push(
 				node.startPosition.row,
