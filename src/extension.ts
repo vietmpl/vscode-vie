@@ -69,15 +69,7 @@ async function initVieLanguage(ctx: vsc.ExtensionContext): Promise<void> {
 	);
 	const highlightsQuery = new Query(vieLanguage, highlightsScm);
 
-	// Parsing a unique array of tokens from highlights.scm
-	const tokenTypes = [
-		...new Set(
-			(highlightsScm.match(/@([\w.-]+)/g) || []).map((x) => x.slice(1)),
-		),
-	];
-
-	// TODO(skewb1k): currently only tokenTypes are used. Consider adding tokenModifiers.
-	const legend = new vsc.SemanticTokensLegend(tokenTypes);
+	const legend = new vsc.SemanticTokensLegend(highlightsQuery.captureNames);
 
 	const provider = new VieSemanticTokensProvider(
 		parser,
