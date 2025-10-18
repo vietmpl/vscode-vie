@@ -62,23 +62,8 @@ export async function activate(ctx: vsc.ExtensionContext) {
 		"utf8",
 	);
 	const highlightsQuery = new Query(vieLanguage, highlightsScm);
-
-	// TODO(skewb1k): Avoid hardcoding tokens here. Extract them from highlightsQuery instead.
-	const tokenTypes = [
-		"keyword",
-		"string",
-		"string.escape",
-		"variable",
-		"boolean",
-		"operator",
-		"punctuation",
-		"comment",
-		"function.call",
-		"punctuation.bracket",
-		"punctuation.delimiter",
-	];
 	// TODO(skewb1k): currently only tokenTypes are used. Consider adding tokenModifiers.
-	const legend = new vsc.SemanticTokensLegend(tokenTypes);
+	const legend = new vsc.SemanticTokensLegend(highlightsQuery.captureNames);
 
 	const provider = new VieSemanticTokensProvider(
 		parser,
