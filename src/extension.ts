@@ -4,30 +4,35 @@ import * as vsc from "vscode";
 import { Language, Parser, Query } from "web-tree-sitter";
 
 class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
-	public constructor(
+	private tokenTypeMap: Map<string, number>;
+
+	constructor(
 		private readonly parser: Parser,
 		private readonly highlightsQuery: Query,
 		private readonly legend: vsc.SemanticTokensLegend,
-	) {}
+	) {
+		this.tokenTypeMap = new Map(
+			this.legend.tokenTypes.map((type, i) => [type, i]),
+		);
+	}
 
 	async provideDocumentSemanticTokens(
 		document: vsc.TextDocument,
-		_: vsc.CancellationToken,
 	): Promise<vsc.SemanticTokens> {
 		const builder = new vsc.SemanticTokensBuilder(this.legend);
 		const tree = this.parser.parse(document.getText());
+
 		if (!tree) {
-			throw new Error("Parse error.");
+			throw new Error("Parse error");
 		}
 
 		const captures = this.highlightsQuery.captures(tree.rootNode);
 		for (const { name, node } of captures) {
-			// TODO(skewb1k): replace current O(n) indexOf lookup with a trie for token strings.
-			// This will allow early exit and O(length-of-string) lookup.
-			const tokenTypeIndex = this.legend.tokenTypes.indexOf(name);
-			if (tokenTypeIndex === -1) {
+			const tokenTypeIndex = this.tokenTypeMap.get(name);
+
+			if (tokenTypeIndex === undefined) {
 				tree.delete();
-				throw new Error(`Token type "${name}" not found in legend.tokenTypes.`);
+				throw new Error(`Token type "${name}" not found in legend.tokenTypes`);
 			}
 
 			builder.push(
@@ -38,17 +43,18 @@ class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
 				0,
 			);
 		}
+
 		tree.delete();
 		return builder.build();
 	}
 
-	public dispose() {
+	dispose() {
 		this.parser.delete();
 		this.highlightsQuery.delete();
 	}
 }
 
-export async function activate(ctx: vsc.ExtensionContext) {
+async function initVieLanguage(ctx: vsc.ExtensionContext): Promise<void> {
 	await Parser.init();
 
 	const vieLanguage = await Language.load(
@@ -63,20 +69,13 @@ export async function activate(ctx: vsc.ExtensionContext) {
 	);
 	const highlightsQuery = new Query(vieLanguage, highlightsScm);
 
-	// TODO(skewb1k): Avoid hardcoding tokens here. Extract them from highlightsQuery instead.
+	// Parsing a unique array of tokens from highlights.scm
 	const tokenTypes = [
-		"keyword",
-		"string",
-		"string.escape",
-		"variable",
-		"boolean",
-		"operator",
-		"punctuation",
-		"comment",
-		"function.call",
-		"punctuation.bracket",
-		"punctuation.delimiter",
+		...new Set(
+			(highlightsScm.match(/@([\w.-]+)/g) || []).map((x) => x.slice(1)),
+		),
 	];
+
 	// TODO(skewb1k): currently only tokenTypes are used. Consider adding tokenModifiers.
 	const legend = new vsc.SemanticTokensLegend(tokenTypes);
 
@@ -85,6 +84,7 @@ export async function activate(ctx: vsc.ExtensionContext) {
 		highlightsQuery,
 		legend,
 	);
+
 	ctx.subscriptions.push(
 		vsc.languages.registerDocumentSemanticTokensProvider(
 			{ language: "vie" },
@@ -93,4 +93,8 @@ export async function activate(ctx: vsc.ExtensionContext) {
 		),
 		provider, // Pass provider to dispose it on deactivation.
 	);
+}
+
+export async function activate(ctx: vsc.ExtensionContext) {
+	await initVieLanguage(ctx);
 }
