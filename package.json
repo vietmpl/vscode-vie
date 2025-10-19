@@ -1,7 +1,7 @@
 {
 	"name": "vie",
 	"displayName": "Vie",
-	"publisher": "vietmpl",
+	"publisher": "vie",
 	"description": "Modern toolchain for code generation",
 	"readme": "README.md",
 	"version": "0.2.1",
