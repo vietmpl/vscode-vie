@@ -10,4 +10,4 @@ Developers often waste time writing repetitive boilerplate and setting up projec
 - Fast CLI, formatter and templating engine powered by Go and Tree-sitter–based parsing.
 - Own-designed simple, clear and expressive template language.
 - Automatic argument type system for safer and more predictable generation.
-- Zero configuration required — works out of the box.
+- Zero configuration required.
