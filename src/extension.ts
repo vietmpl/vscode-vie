@@ -1,10 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import * as vsc from "vscode";
-import { Language, Parser, Query } from "web-tree-sitter";
+import { Language, Parser, Query, type Tree } from "web-tree-sitter";
+import { vscChangeToTSEdit } from "./vscChangeToTSEdit";
 
 class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
-	private tokenTypeMap: Map<string, number>;
+	private readonly tokenTypeMap: Map<string, number>;
+	private readonly trees: Map<vsc.TextDocument, Tree>;
 
 	constructor(
 		private readonly parser: Parser,
@@ -14,22 +16,44 @@ class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
 		this.tokenTypeMap = new Map(
 			this.legend.tokenTypes.map((type, i) => [type, i]),
 		);
+		this.trees = new Map();
+		vsc.workspace.onDidChangeTextDocument((event) => {
+			const tree = this.trees.get(event.document);
+			if (!tree) return;
+
+			for (const change of event.contentChanges) {
+				tree.edit(vscChangeToTSEdit(change));
+			}
+
+			const newTree = this.parser.parse(event.document.getText(), tree);
+			tree.delete();
+			if (!newTree) throw new Error("Parse error");
+			this.trees.set(event.document, newTree);
+		});
+
+		vsc.workspace.onDidCloseTextDocument((document) => {
+			const tree = this.trees.get(document);
+			if (!tree) return;
+			tree.delete();
+			this.trees.delete(document);
+		});
 	}
 
 	async provideDocumentSemanticTokens(
 		document: vsc.TextDocument,
 	): Promise<vsc.SemanticTokens> {
 		const builder = new vsc.SemanticTokensBuilder(this.legend);
-		const tree = this.parser.parse(document.getText());
 
+		let tree = this.trees.get(document) ?? null;
 		if (!tree) {
-			throw new Error("Parse error");
+			tree = this.parser.parse(document.getText());
+			if (!tree) throw new Error("Parse error");
+			this.trees.set(document, tree);
 		}
 
 		const captures = this.highlightsQuery.captures(tree.rootNode);
 		for (const { name, node } of captures) {
 			const tokenTypeIndex = this.tokenTypeMap.get(name);
-
 			if (tokenTypeIndex === undefined) {
 				tree.delete();
 				throw new Error(`Token type "${name}" not found in legend.tokenTypes`);
@@ -43,18 +67,21 @@ class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
 				0,
 			);
 		}
-
-		tree.delete();
 		return builder.build();
 	}
 
 	dispose() {
+		for (const tree of this.trees.values()) {
+			tree.delete();
+		}
 		this.parser.delete();
 		this.highlightsQuery.delete();
 	}
 }
 
-async function initVieLanguage(ctx: vsc.ExtensionContext): Promise<void> {
+async function initSemanticTokensProvider(
+	ctx: vsc.ExtensionContext,
+): Promise<void> {
 	await Parser.init();
 
 	const vieLanguage = await Language.load(
@@ -88,5 +115,5 @@ async function initVieLanguage(ctx: vsc.ExtensionContext): Promise<void> {
 }
 
 export async function activate(ctx: vsc.ExtensionContext) {
-	await initVieLanguage(ctx);
+	await initSemanticTokensProvider(ctx);
 }
