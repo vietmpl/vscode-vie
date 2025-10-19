@@ -5,7 +5,6 @@ import { Language, Parser, Query, type Tree } from "web-tree-sitter";
 import { vscChangeToTSEdit } from "./vscChangeToTSEdit";
 
 class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
-	private readonly tokenTypeMap: Map<string, number>;
 	private readonly trees: Map<vsc.TextDocument, Tree>;
 
 	constructor(
@@ -13,9 +12,6 @@ class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
 		private readonly highlightsQuery: Query,
 		private readonly legend: vsc.SemanticTokensLegend,
 	) {
-		this.tokenTypeMap = new Map(
-			this.legend.tokenTypes.map((type, i) => [type, i]),
-		);
 		this.trees = new Map();
 		vsc.workspace.onDidChangeTextDocument((event) => {
 			const tree = this.trees.get(event.document);
@@ -52,18 +48,13 @@ class VieSemanticTokensProvider implements vsc.DocumentSemanticTokensProvider {
 		}
 
 		const captures = this.highlightsQuery.captures(tree.rootNode);
-		for (const { name, node } of captures) {
-			const tokenTypeIndex = this.tokenTypeMap.get(name);
-			if (tokenTypeIndex === undefined) {
-				tree.delete();
-				throw new Error(`Token type "${name}" not found in legend.tokenTypes`);
-			}
-
+		for (const capture of captures) {
+			const node = capture.node;
 			builder.push(
 				node.startPosition.row,
 				node.startPosition.column,
 				node.endPosition.column - node.startPosition.column,
-				tokenTypeIndex,
+				capture.patternIndex,
 				0,
 			);
 		}
